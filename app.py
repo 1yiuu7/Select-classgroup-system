@@ -165,6 +165,101 @@ def download():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+# --- 管理與統計功能 ---
 
+@app.route('/admin')
+def admin_summary():
+    # 1. 讀取原始全校學生名冊
+    try:
+        df_students = pd.read_excel("students.xlsx")
+        # 確保學號為字串格式
+        df_students['學號'] = df_students['學號'].astype(str).str.strip()
+    except Exception as e:
+        return f"讀取 students.xlsx 失敗: {e}"
+
+    # 2. 讀取已選擇紀錄
+    if os.path.exists("selections.xlsx"):
+        try:
+            df_selections = pd.read_excel("selections.xlsx")
+            df_selections['學號'] = df_selections['學號'].astype(str).str.strip()
+            # 只取需要的欄位進行比對
+            df_selections = df_selections[['學號', '選定班群', '時間']]
+        except:
+            df_selections = pd.DataFrame(columns=['學號', '選定班群', '時間'])
+    else:
+        df_selections = pd.DataFrame(columns=['學號', '選定班群', '時間'])
+
+    # 3. 合併資料 (Left Join)
+    merged = pd.merge(df_students[['班級', '座號', '學號', '姓名']], df_selections, on='學號', how='left')
+
+    # 4. 統計人數
+    total_count = len(merged)
+    completed_count = df_selections['學號'].nunique()
+    pending_count = total_count - completed_count
+
+    # 5. 格式化表格內容
+    merged['選定班群'] = merged['選定班群'].apply(lambda x: f'<span style="color:red; font-weight:bold;">尚未填寫</span>' if pd.isnull(x) else x)
+    merged['時間'] = merged['時間'].fillna('-')
+
+    table_html = merged.to_html(classes='table', index=False, escape=False)
+
+    # 6. 回傳管理頁面
+    return f'''
+    <html>
+    <head>
+        <title>全校選課統計</title>
+        <style>
+            body {{ font-family: "Microsoft JhengHei", sans-serif; padding: 30px; background-color: #f8f9fa; }}
+            .container {{ max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+            .summary {{ display: flex; justify-content: space-around; background: #333; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
+            .table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+            .table th, .table td {{ border: 1px solid #ddd; padding: 10px; text-align: left; }}
+            .table th {{ background-color: #f2f2f2; position: sticky; top: 0; }}
+            .btn-download {{ display: block; width: 200px; text-align: center; background: #28a745; color: white; padding: 10px; text-decoration: none; border-radius: 5px; margin-bottom: 10px; font-weight: bold; }}
+            .btn-download:hover {{ background: #218838; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>全校選課進度統計</h2>
+            <div class="summary">
+                <span>總人數：{total_count}</span>
+                <span style="color: #5cb85c;">已送出：{completed_count}</span>
+                <span style="color: #ff4d4d;">尚未送出：{pending_count}</span>
+            </div>
+            <a href="/export_excel" class="btn-download">⬇️ 下載完整 Excel 報表</a>
+            <div style="overflow-y: auto; max-height: 600px;">
+                {table_html}
+            </div>
+        </div>
+    </body>
+    </html>
+    '''
+
+@app.route('/export_excel')
+def export_excel():
+    # 讀取全校學生
+    df_students = pd.read_excel("students.xlsx")
+    df_students['學號'] = df_students['學號'].astype(str).str.strip()
+    
+    # 讀取已選擇紀錄
+    if os.path.exists("selections.xlsx"):
+        df_selections = pd.read_excel("selections.xlsx")
+        df_selections['學號'] = df_selections['學號'].astype(str).str.strip()
+        df_selections = df_selections[['學號', '選定班群', '時間']]
+    else:
+        df_selections = pd.DataFrame(columns=['學號', '選定班群', '時間'])
+
+    # 合併
+    report = pd.merge(df_students[['班級', '座號', '學號', '姓名']], df_selections, on='學號', how='left')
+    
+    # 新增狀態欄位
+    report['填寫狀態'] = report['選定班群'].apply(lambda x: '已完成' if pd.notnull(x) else '尚未填寫')
+    
+    # 儲存
+    output_path = "全校選課統計結果.xlsx"
+    report.to_excel(output_path, index=False)
+    
+    return send_file(output_path, as_attachment=True)
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
