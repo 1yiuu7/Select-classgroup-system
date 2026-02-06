@@ -1,55 +1,61 @@
-復興高中選班群系統 (Docker 部署版)
-這是一個基於 Flask 開發的極簡風選班群系統，支援自動存檔至 Excel 並產生個人化 Word 確認表單。透過 Docker 技術，本系統可以快速部署於任何電腦。
+復興高中選班群系統 (v2.0 統計加強版)
+這是一個專為高中選修班群設計的 Flask 系統。除了提供學生選填介面，新版更加入了即時統計後台，能自動比對全校名單，快速抓出尚未繳交的學生，並支援匯出 Excel 報表。
+
+🌟 核心功能
+學生登入驗證：對接 students.xlsx 進行學號與身分證後六碼驗證。
+
+班群選填與存檔：學生選擇後自動寫入 selections.xlsx，支援重複修改。
+
+個人表單下載：自動將學生的選擇帶入 template.docx，產生符合排版格式的 PDF/Word 列印表單。
+
+全校進度統計 (New!)：
+
+網頁監控面板：/admin 頁面即時顯示「已繳交」與「未繳交」名單。
+
+比對功能：系統自動拿全校名單進行 Left Join，未填寫者以紅字標示。
+
+記憶體匯出技術：下載 Excel 時不佔用硬碟檔案，有效防止「Permission denied」權限鎖定問題。
 
 📂 核心檔案清單
-搬移系統至新電腦時，請確保以下檔案存在於同一個資料夾中：
+app.py：系統主程式（內含統計與下載邏輯）。
 
-app.py：系統邏輯與介面 (內含 CSS)。
+students.xlsx：【必備】 原始學生資料庫（需包含：班級、座號、學號、姓名、身份證號後6碼）。
 
-Dockerfile：環境映像檔定義。
+selections.xlsx：系統自動產生，記錄所有學生的選填結果。
 
-docker-compose.yml：容器啟動與資料掛載配置。
+template.docx：Word 列印範本，內含 {{name}} 等變數標籤。
 
-students.xlsx：學生基本資料庫（需包含姓名與身分證字號欄位）。
+docker-compose.yml & Dockerfile：用於快速環境建置。
 
-template.docx：學生下載用的 Word 列印範本。
+📊 管理者功能使用說明
+1. 進入統計後台
+在瀏覽器輸入以下網址（假設在本地運行）：
 
-🚀 新電腦部署步驟
-1. 環境準備
-在新電腦上安裝並啟動以下軟體：
+http://localhost:5000/admin
 
-Docker Desktop: 官方下載連結
+畫面會顯示：
 
-2. 啟動系統
-開啟終端機 (PowerShell 或 CMD)，進入專案資料夾後執行：
+總人數統計：總計、已完成、待補交人數。
 
-PowerShell
-# 建立映像檔並在背景啟動容器
+即時名單表格：直接看到全校每位學生的選填狀況，沒填的人會標註為紅色的「尚未填寫」。
+
+2. 匯出 Excel 統計報表
+在管理頁面點擊 「下載完整 Excel 報表」：
+
+系統會生成一份名為 全校選課統計_日期時間.xlsx 的檔案。
+
+此檔案包含全校學生的基本資料，並額外增加一欄「填寫狀態」，方便老師直接依據狀態進行篩選與催繳。
+
+🚀 部署指令
+啟動系統：
+
+Bash
 docker-compose up -d --build
-3. 開始使用
-本地測試：在瀏覽器輸入 http://localhost:5000
+更新名單後重啟：
 
-對外連線：查詢該主機的 IP (如 192.168.x.x)，其他電腦輸入 http://192.168.x.x:5000 即可登入。
+Bash
+docker-compose restart
+停止並移除容器：
 
-📊 資料管理說明
-學生選填結果
-系統會自動在資料夾下產生 selections.xlsx。
-
-由於我們在 docker-compose.yml 中設定了 volumes，該檔案會即時同步出現在你的主機資料夾內。
-
-注意：請勿在系統執行期間用 Excel 軟體「鎖定」開啟該檔案，以免寫入失敗。
-
-更新學生名單
-若要更新 students.xlsx，只需覆蓋舊檔並執行 docker-compose restart 即可生效。
-
-🛠️ 常用維護指令
-查看運行狀態：docker ps
-
-查看即時錯誤日誌：docker-compose logs -f
-
-停止系統：docker-compose down
-
-重新啟動：docker-compose restart
-
-🎨 風格調整
-本系統採用 黑白灰極簡風格。若需修改介面顏色或文字，請編輯 app.py 中的 STYLE 變數與 HTML 字串，修改後需執行 docker-compose up -d --build 重新編譯。
+Bash
+docker-compose down
